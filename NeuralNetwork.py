@@ -4,7 +4,6 @@ Created on Sun Sep 10 22:02:06 2017
 
 @author: tt20171105
 """
-import os
 import numpy as np
 import pandas as pd
 from sklearn import datasets
