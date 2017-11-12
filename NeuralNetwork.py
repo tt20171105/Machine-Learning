@@ -41,21 +41,21 @@ def forward(_X, _W_hidden, _W_output):
     target_output_col = [col for col in range(OUTPUT_SIZE)]
     #隠れ層の計算
     #入力層に重みをかけて和をとり、活性化関数をかませる
-    list_curt_unit = []
+    list_unit = []
     for curt_unit in range(UNIT_NUM):
         unit_sum = _X[target_input_col].apply(lambda x: np.array(list(x)) * _W_hidden[curt_unit],axis=1)
         unit_sum = unit_sum.sum(1)
-        list_curt_unit.append(unit_sum)
-    activate = np.tanh(pd.concat(list_curt_unit,axis=1))
+        list_unit.append(unit_sum)
+    activate = np.tanh(pd.concat(list_unit,axis=1))
     
     #出力層の計算
     #隠れ層の出力に重みをかけて和をとる
-    list_curt_unit = []
+    list_unit = []
     for curt_unit in range(OUTPUT_SIZE):
         unit_sum = activate.apply(lambda x: np.array(list(x)) * _W_output[curt_unit],axis=1)
         unit_sum = unit_sum.sum(1)
-        list_curt_unit.append(unit_sum)
-    output = pd.concat(list_curt_unit,axis=1)
+        list_unit.append(unit_sum)
+    output = pd.concat(list_unit,axis=1)
     #発散しないように和を 1 にする
     output["sum"] = output.sum(1)
     output = output.apply(lambda x: x[target_output_col] / x["sum"],axis=1)
