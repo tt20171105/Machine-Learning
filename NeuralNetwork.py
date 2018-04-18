@@ -39,11 +39,12 @@ def cre_data_iris():
 def forward(_X, _W_hidden, _W_output):
     target_input_col  = [col for col in range(INPUT_SIZE)]
     target_output_col = [col for col in range(OUTPUT_SIZE)]
+
     #隠れ層の計算
     #入力層に重みをかけて和をとり、活性化関数をかませる
     list_unit = []
     for curt_unit in range(UNIT_NUM):
-        unit_sum = _X[target_input_col].apply(lambda x: np.array(list(x)) * _W_hidden[curt_unit],axis=1)
+        unit_sum = _X.iloc[:,target_input_col].apply(lambda x: np.array(list(x)) * _W_hidden[curt_unit],axis=1)
         unit_sum = unit_sum.sum(1)
         list_unit.append(unit_sum)
     activate = np.tanh(pd.concat(list_unit,axis=1))
@@ -97,7 +98,7 @@ def train(_X, _W_hidden, _W_output):
         
         #誤差を計算し、表示する
         error    = np.absolute(pd.DataFrame(list(_X["Y"])) - output).sum().sum()
-        accuracy = output.apply(lambda x: np.argmax(x),axis=1) - pd.DataFrame(list(_X["Y"])).apply(lambda x: np.argmax(x),axis=1)
+        accuracy = output.apply(lambda x: x.values.argmax(), axis=1) - pd.DataFrame(list(_X["Y"])).apply(lambda x: x.values.argmax(), axis=1)
         for i in range(1,OUTPUT_SIZE): accuracy = np.absolute(accuracy).replace(i,1)
         list_error.append(error)
         list_accuracy.append(DATA_NUM - accuracy.sum())
@@ -132,7 +133,7 @@ pd.DataFrame(error).plot(legend=False)
 
 #評価
 activate, output = forward(X, W_hidden, W_output)
-X["Y"] = output.apply(lambda x: np.argmax(x),axis=1)
+X["Y"] = output.apply(lambda x: x.values.argmax, axis=1)
 X.plot.scatter(x='s_len',y='s_wid',c="Y",cmap='Reds',colorbar=False)
 X.plot.scatter(x='p_len',y='p_wid',c="Y",cmap='Reds',colorbar=False)
 X.plot.scatter(x='s_len',y='p_wid',c="Y",cmap='Reds',colorbar=False)
