@@ -4,6 +4,7 @@ Created on Sun Sep 10 22:02:06 2017
 
 @author: tt20171105
 """
+import itertools
 import numpy as np
 import pandas as pd
 from sklearn import datasets
@@ -131,7 +132,6 @@ class DeepNeuralNetwork():
         else:
             #最後の隠れ層→出力層の計算
             df = unit_sum(df, self.out_layer_size, self.hid_w[i+1], self.hid_b[i+1])
-            self.test = df
             activated.append(activation(df, self._softmax))
         
         #活性化関数計算後
@@ -144,63 +144,47 @@ class DeepNeuralNetwork():
     ##############################
     #誤差逆伝播
     def _backward(self, x, alpha):
+        
+        def grad(tg_df, tg_w, tg_b, bf_df):
+            w = []
+            #勾配を求める
+            iter_col = itertools.product(tg_df.columns, bf_df.columns)
+            for idx, cols in enumerate(iter_col):
+                grad = (tg_df[cols[0]] * bf_df[cols[1]]).sum()
+                w.append(tg_w[0][idx] - alpha * grad)
+            grad = (tg_df * tg_b).sum()
+            b    = tg_b - alpha * grad
+            return w, b
+
         w_new, b_new = [], []
         #隠れ層→出力層の重みを更新する
-        w, b      = [], []
-        target_w  = self.hid_w[self.hid_layer_num]
-        target_b  = self.hid_b[self.hid_layer_num]
-        before_df = self.activated[self.hid_layer_num-1]
-        for i, c_l in enumerate(self.loss):
-            for j, c_h in enumerate(before_df):
-                #重みの更新
-                _sum = (self.loss[c_l] * before_df[c_h]).sum()
-                w.append(target_w[i][j] - alpha * _sum)
-            #バイアスの更新
-            _sum = (self.loss[c_l] * target_b[i]).sum()
-            b.append(target_b[i] - alpha * _sum)
-        #更新後の重みとバイアスを退避
+        w, b = grad(self.loss,
+                    self.hid_w[self.hid_layer_num].reshape(1,-1),
+                    self.hid_b[self.hid_layer_num],
+                    self.activated[self.hid_layer_num-1])
+        #更新後の重みとバイアス
         w_new.append(np.array(w).reshape(self.out_layer_size,
                                          self.unit_size[self.hid_layer_num-1]))
         b_new.append(b)
         
         #入力層→隠れ層、隠れ層→隠れ層の重みを更新する
-        def calc_hid_backward(target_df, target_w, target_b, target_unit,
-                              before_df, before_unit, next_df, next_w):
-            w, b = [], []
-            for i, c_d in enumerate(target_df):
-                hid = []
-                for j, c_n in enumerate(next_df):
-                    hid.append(next_w[j][i] * next_df[c_n])
-                hid = target_df[c_d] * (pd.concat(hid, axis=1).sum(1))
-                for j, c_t in enumerate(before_df):
-                    #重みの更新
-                    _sum = (hid * before_df[c_t]).sum()
-                    w.append(target_w[i][j] - alpha * _sum)
-                #バイアスの更新
-                _sum = (hid * target_b[i]).sum()
-                b.append(target_b[i] - alpha * _sum)
-            return np.array(w).reshape(target_unit, before_unit), b
-        
         for i in range(1, self.hid_layer_num+1):
-            target_df   = self.dactivated[self.hid_layer_num-i]
-            target_w    = self.hid_w[self.hid_layer_num-i]
-            target_b    = self.hid_b[self.hid_layer_num-i]
-            target_unit = self.unit_size[self.hid_layer_num-i]
-            if i==self.hid_layer_num:
-                before_df   = x
-                before_unit = self.in_layer_size
-            else:
-                before_df   = self.activated[self.hid_layer_num-i-1]
-                before_unit = self.unit_size[self.hid_layer_num-i-1]
-            if i==1:
-                next_df = self.loss
-            else:
-                next_df = self.activated[self.hid_layer_num-i+1]
-            next_w      = self.hid_w[self.hid_layer_num-i+1]
+            hid     = []
+            next_df = self.loss if i==1 else self.activated[self.hid_layer_num-i+1]
+            next_w  = self.hid_w[self.hid_layer_num-i+1]
+            for j in range(next_w.shape[1]):
+                hid.append((next_df * next_w[:,j]).sum(1))
+            hid  = self.dactivated[self.hid_layer_num-i] * pd.concat(hid, axis=1)
             
-            w, b = calc_hid_backward(target_df, target_w, target_b, target_unit,
-                                     before_df, before_unit, next_df, next_w)
-            w_new.append(w)
+            before_df   = x if i==self.hid_layer_num else self.activated[self.hid_layer_num-i-1]
+            before_unit = self.in_layer_size if i==self.hid_layer_num else self.unit_size[self.hid_layer_num-i-1]
+            w, b = grad(hid,
+                        self.hid_w[self.hid_layer_num-i].reshape(1,-1),
+                        self.hid_b[self.hid_layer_num-i],
+                        before_df)
+            #更新後の重みとバイアス
+            w_new.append(np.array(w).reshape(self.unit_size[self.hid_layer_num-i],
+                                             before_unit))
             b_new.append(b)
         
         w_new.reverse()
@@ -249,16 +233,14 @@ class DeepNeuralNetwork():
         df = self._forward(x, prd=True)
         return df.apply(lambda x: x.values.argmax(), axis=1)
 
-
 #########################################################
+#irisからデータを生成
+X, DATA_NUM, INPUT_SIZE, Y, OUTPUT_SIZE = cre_data_iris()
+
 #ハイパーパラメータ
 LIST_UNIT_NUM = [4,4]    #隠れ層のユニット数
 EPOCHS        = 1000     #エポック数
 ALPHA         = 0.00001  #学習率
-
-#irisからデータを生成
-X, DATA_NUM, INPUT_SIZE, Y, OUTPUT_SIZE = cre_data_iris()
-
 dnn = DeepNeuralNetwork(INPUT_SIZE, OUTPUT_SIZE, LIST_UNIT_NUM, seed=15)
 dnn.fit(X, Y, epochs=EPOCHS, alpha=ALPHA)
 
