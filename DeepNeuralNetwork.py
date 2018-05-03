@@ -1,4 +1,3 @@
-# coding: utf-8
 # -*- coding: utf-8 -*-
 """
 Created on Sun Sep 10 22:02:06 2017
@@ -36,6 +35,7 @@ class DeepNeuralNetwork():
                  out_layer_size,
                  list_unit_size,
                  activation="ReLU",
+                 loss="categorical_crossentropy",
                  seed=""):
         self.in_layer_size  = in_layer_size
         self.hid_layer_num  = len(list_unit_size)
@@ -59,7 +59,15 @@ class DeepNeuralNetwork():
             print("we don't support activation function '{0}'. \nBecause we use ReLU.".format(activation))
             self.h  = self._ReLU
             self.dh = self._dReLU
-
+        #損関数の設定 
+        if   loss=="categorical_crossentropy":
+            self.loss = self._cross_entropy_error
+        elif loss=="mean_squared_error":
+            self.loss = self._mean_squared_error
+        else:
+            print("we don't support loss function '{0}'. \nBecause we use categorical crossentropy.".format(loss))
+            self.loss = self._cross_entropy_error
+            
     def _initial_weight(self, seed):
         list_w = []
         #シードの固定
@@ -90,16 +98,19 @@ class DeepNeuralNetwork():
         return 1. / (1 + np.exp(-x))
     def _dsigmoid(self, x):
         return x * (1. - x)
+    
     #双曲線正接関数
     def _tanh(self, x):
         return np.tanh(x)
     def _dtanh(self, x):
         return 1. - x * x
+    
     #ランプ関数
     def _ReLU(self, x):
         return x * (x > 0)
     def _dReLU(self, x):
         return 1. * (x > 0)
+    
     #ソフトマックス関数
     def _softmax(self, x):
         max_x     = np.max(x)
@@ -108,6 +119,18 @@ class DeepNeuralNetwork():
         y         = exp_x / sum_exp_x
         return y 
     
+    ##############################
+    #損失関数
+    #2乗和誤差
+    def _mean_squared_error(self, df_y, df_t):
+        return 0.5 * ((df_y - df_t) ** 2).sum().sum()
+    
+    #交差エントロピー誤差
+    def _cross_entropy_error(self, df_y, df_t):
+        #発散しないように微小な値を追加する
+        delta = 1e-7
+        return - (df_t * np.log(df_y + delta)).sum().sum()
+
     ##############################
     #順伝播
     def _forward(self, x, prd=False):
@@ -159,7 +182,7 @@ class DeepNeuralNetwork():
 
         w_new, b_new = [], []
         #隠れ層→出力層の重みを更新する
-        w, b = grad(self.loss,
+        w, b = grad(self.y_t,
                     self.hid_w[self.hid_layer_num].reshape(1,-1),
                     self.hid_b[self.hid_layer_num],
                     self.activated[self.hid_layer_num-1])
@@ -171,7 +194,7 @@ class DeepNeuralNetwork():
         #入力層→隠れ層、隠れ層→隠れ層の重みを更新する
         for i in range(1, self.hid_layer_num+1):
             hid     = []
-            next_df = self.loss if i==1 else self.activated[self.hid_layer_num-i+1]
+            next_df = self.y_t if i==1 else self.activated[self.hid_layer_num-i+1]
             next_w  = self.hid_w[self.hid_layer_num-i+1]
             for j in range(next_w.shape[1]):
                 hid.append((next_df * next_w[:,j]).sum(1))
@@ -195,7 +218,7 @@ class DeepNeuralNetwork():
         
     ##############################
     #学習
-    def fit(self, x, y, epochs=100, alpha=0.0000001, verbose=1):
+    def fit(self, x, t, epochs=100, alpha=0.0000001, verbose=1):
         #学習履歴のロード
         if self.history is None:
             list_loss = []
@@ -209,12 +232,11 @@ class DeepNeuralNetwork():
             self._forward(x)
             
             #誤差を計算し、表示する
-            df_out_layer = self.activated[self.hid_layer_num]
-            df_y         = pd.DataFrame(list(y.iloc[:,0]))
-            self.loss    = df_out_layer - df_y
-            loss = np.absolute(self.loss).sum().sum()
+            df_y = self.activated[self.hid_layer_num]
+            df_t = pd.DataFrame(list(t.iloc[:,0]))
+            loss = self.loss(df_y, df_t)
             l    = lambda x: x.values.argmax()
-            acc  = df_out_layer.apply(l, axis=1) - df_y.apply(l, axis=1)
+            acc  = df_y.apply(l, axis=1) - df_t.apply(l, axis=1)
             acc  = list(acc).count(0) / x.shape[0]
             list_loss.append(loss)
             list_acc.append(acc)
@@ -223,6 +245,7 @@ class DeepNeuralNetwork():
                       str(epoch + 1), str(epochs), str(round(acc,2)), str(loss)))
         
             #誤差逆伝播
+            self.y_t = df_y - df_t
             self._backward(x, alpha)
             #履歴の保存
             self.history = [list_loss, list_acc]
@@ -236,14 +259,14 @@ class DeepNeuralNetwork():
 
 #########################################################
 #irisからデータを生成
-X, DATA_NUM, INPUT_SIZE, Y, OUTPUT_SIZE = cre_data_iris()
+X, DATA_NUM, INPUT_SIZE, T, OUTPUT_SIZE = cre_data_iris()
 
 #ハイパーパラメータ
 LIST_UNIT_NUM = [4,4]    #隠れ層のユニット数
 EPOCHS        = 1000     #エポック数
 ALPHA         = 0.00001  #学習率
 dnn = DeepNeuralNetwork(INPUT_SIZE, OUTPUT_SIZE, LIST_UNIT_NUM, seed=15)
-dnn.fit(X, Y, epochs=EPOCHS, alpha=ALPHA)
+dnn.fit(X, T, epochs=EPOCHS, alpha=ALPHA)
 
 #誤差をプロット
 pd.DataFrame(dnn.history[0]).plot(legend=False)
@@ -259,4 +282,3 @@ X.plot.scatter(x='p_len',y='s_wid',c=colors)
 X.plot.scatter(x='p_len',y='p_wid',c=colors)
 X.plot.scatter(x='s_len',y='p_wid',c=colors)
 X.plot.scatter(x='p_len',y='s_wid',c=colors)
-
