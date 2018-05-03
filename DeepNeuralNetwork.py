@@ -1,3 +1,4 @@
+# coding: utf-8
 # -*- coding: utf-8 -*-
 """
 Created on Sun Sep 10 22:02:06 2017
@@ -249,8 +250,13 @@ pd.DataFrame(dnn.history[0]).plot(legend=False)
 pd.DataFrame(dnn.history[1]).plot(legend=False)
 
 #評価
+if "Y" in X.columns:
+    X.drop("Y", axis=1, inplace=True)
 X["Y"] = dnn.predict(X)
-X.plot.scatter(x='s_len',y='s_wid',c="Y",cmap='Reds',colorbar=False)
-X.plot.scatter(x='p_len',y='p_wid',c="Y",cmap='Reds',colorbar=False)
-X.plot.scatter(x='s_len',y='p_wid',c="Y",cmap='Reds',colorbar=False)
-X.plot.scatter(x='p_len',y='s_wid',c="Y",cmap='Reds',colorbar=False)
+colors = ["red","blue","green"]
+colors = [colors[i] for i in X.Y]
+X.plot.scatter(x='p_len',y='s_wid',c=colors)
+X.plot.scatter(x='p_len',y='p_wid',c=colors)
+X.plot.scatter(x='s_len',y='p_wid',c=colors)
+X.plot.scatter(x='p_len',y='s_wid',c=colors)
+
