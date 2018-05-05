@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 """
 Created on Sun Sep 10 22:02:06 2017
 
@@ -10,68 +10,45 @@ import pandas as pd
 from sklearn import datasets
 
 #データの準備(iris)
-def cre_data_iris():
+def cre_data_iris(is_vectorize=True):
     #目的変数をベクトル化
-    def Y_vectorize(y, sorted_y):
-        vector_y = []
-        for _y in sorted_y:
-            if _y==y: 
-                vector_y.append(1)
+    def t_vectorize(t, sorted_t):
+        vector_t = []
+        for _t in sorted_t:
+            if _t==t: 
+                vector_t.append(1)
             else:
-                vector_y.append(0)
-        return vector_y
+                vector_t.append(0)
+        return vector_t
     iris = datasets.load_iris()
-    X = pd.DataFrame(iris.data,   columns=["s_len","s_wid","p_len","p_wid"])
-    Y = pd.DataFrame(iris.target, columns=["Y"])
-    sorted_y = sorted(Y.Y.unique())
-    Y["Y"]   = Y.apply(lambda y: Y_vectorize(y.values[0], sorted_y), axis=1)
-    #元データ, データ数, 入力層の数, 正解ラベル, 出力層の数
-    return X, X.shape[0], X.shape[1], Y, len(Y.Y[0])
+    x = pd.DataFrame(iris.data,   columns=["s_len","s_wid","p_len","p_wid"])
+    t = pd.DataFrame(iris.target, columns=["t"])
+    output_layer_size = 1
+    if is_vectorize:
+        sorted_t = sorted(t.t.unique())
+        t["t"]   = t.apply(lambda t: t_vectorize(t.values[0], sorted_t), axis=1)
+        output_layer_size = len(t.t[0])
+    #元データ, 入力層の数, 正解ラベル, 出力層の数
+    return x, x.shape[1], t, output_layer_size
 
 class DeepNeuralNetwork():
     
-    def __init__(self,
-                 in_layer_size,
-                 out_layer_size,
-                 list_unit_size,
-                 activation="ReLU",
-                 loss="categorical_crossentropy",
-                 seed=""):
-        self.in_layer_size  = in_layer_size
-        self.hid_layer_num  = len(list_unit_size)
-        self.out_layer_size = out_layer_size
-        self.unit_size      = list_unit_size
-        #重みの初期化
-        self._initial_weight(seed)
+    def __init__(self, seed=None):
+        self.unit_size = []
+        self.h         = []
+        self.dh        = []
+        self.loss      = None
         #学習履歴の初期化
-        self.history = None
-        #活性化関数の設定
-        if   activation=="ReLU":
-            self.h  = self._ReLU
-            self.dh = self._dReLU
-        elif activation=="tanh":
-            self.h  = self._tanh
-            self.dh = self._dtanh
-        elif activation=="sigmoid":
-            self.h  = self._sigmoid
-            self.dh = self._dsigmoid
-        else:
-            print("we don't support activation function '{0}'. \nBecause we use ReLU.".format(activation))
-            self.h  = self._ReLU
-            self.dh = self._dReLU
-        #損関数の設定 
-        if   loss=="categorical_crossentropy":
-            self.loss = self._cross_entropy_error
-        elif loss=="mean_squared_error":
-            self.loss = self._mean_squared_error
-        else:
-            print("we don't support loss function '{0}'. \nBecause we use categorical crossentropy.".format(loss))
-            self.loss = self._cross_entropy_error
-            
-    def _initial_weight(self, seed):
-        list_w = []
+        self.history   = None
+        #シード
+        self.seed      = seed
+    
+    def _initial_weight(self):
         #シードの固定
-        if seed!="": np.random.seed(seed)
+        if not self.seed is None:
+            np.random.seed(self.seed)
+
+        list_w = []
         #入力層→1つ目の隠れ層の重み
         w = np.random.random_sample((self.unit_size[0], self.in_layer_size))
         list_w.append(w)
@@ -111,6 +88,10 @@ class DeepNeuralNetwork():
     def _dReLU(self, x):
         return 1. * (x > 0)
     
+    #恒等関数
+    def _identify(self, x):
+        return x
+    
     #ソフトマックス関数
     def _softmax(self, x):
         max_x     = np.max(x)
@@ -132,14 +113,27 @@ class DeepNeuralNetwork():
         return - (df_t * np.log(df_y + delta)).sum().sum()
 
     ##############################
+    #評価関数
+    #正解率
+    def _accuracy(self, df_y, df_t, data_num):
+        l   = lambda x: x.values.argmax()
+        acc = df_y.apply(l, axis=1) - df_t.apply(l, axis=1)
+        acc = list(acc).count(0) / data_num
+        return acc
+        
+    #RMSE
+    def _rmse(self, df_y, df_t, data_num):
+        rmse = np.sqrt(np.mean((df_t - df_y) ** 2))
+        return rmse
+    
+    ##############################
     #順伝播
     def _forward(self, x, prd=False):
         
         def unit_sum(df, unit, w, b):
             list_unit = []
             for curt in range(unit):
-                x_w = df.apply(lambda x: np.array(x) * w[curt], axis=1)
-                list_unit.append(x_w.sum(1) + b[curt])
+                list_unit.append((df * w[curt]).sum(1) + b[curt])
             return pd.concat(list_unit, axis=1)
 
         def activation(df, h):
@@ -151,12 +145,12 @@ class DeepNeuralNetwork():
         for i in range(len(self.unit_size)):
             #隠れ層の計算
             df = unit_sum(df, self.unit_size[i], self.hid_w[i], self.hid_b[i])
-            activated.append(activation(df, self.h))
-            dactivated.append(activation(df, self.dh))
+            activated.append(activation(df, self.h[i]))
+            dactivated.append(activation(df, self.dh[i]))
         else:
             #最後の隠れ層→出力層の計算
             df = unit_sum(df, self.out_layer_size, self.hid_w[i+1], self.hid_b[i+1])
-            activated.append(activation(df, self._softmax))
+            activated.append(activation(df, self.h[i+1]))
         
         #活性化関数計算後
         if prd:
@@ -217,15 +211,81 @@ class DeepNeuralNetwork():
         self.hid_b = b_new
         
     ##############################
+    #層の設定
+    def add_input_layer(self, layer_size, std=False):
+        #層の設定
+        self.in_layer_size = layer_size
+        #データの変換処理
+        self.std           = std
+    
+    def add_hidden_layer(self, layer_size, activation):
+        #層の設定
+        self.unit_size.append(layer_size)
+        self.hid_layer_num = len(self.unit_size)
+        
+        #活性化関数の設定
+        if   activation=="ReLU":
+            self.h.append(self._ReLU)
+            self.dh.append(self._dReLU)
+        elif activation=="tanh":
+            self.h.append(self._tanh)
+            self.dh.append(self._dtanh)
+        elif activation=="sigmoid":
+            self.h.append(self._sigmoid)
+            self.dh.append(self._dsigmoid)
+        else:
+            print("we don't support activation function '{0}'. \nBecause we use ReLU.".format(activation))
+            self.h.append(self._ReLU)
+            self.dh.append(self._dReLU)
+            
+    def add_output_layer(self, layer_size, activation, loss, evaluation):
+        #層の設定
+        self.out_layer_size = layer_size
+        
+        #活性化関数の設定
+        if   activation=="softmax":
+            self.h.append(self._softmax)
+        elif activation=="identify":
+            self.h.append(self._identify)
+        else:
+            print("we don't support activation function '{0}'. \nBecause we use softmax.".format(activation))
+            self.h.append(self._softmax)            
+            
+        #損関数の設定 
+        if   loss=="categorical_crossentropy":
+            self.loss = self._cross_entropy_error
+        elif loss=="mean_squared_error":
+            self.loss = self._mean_squared_error
+        else:
+            print("we don't support loss function '{0}'. \nBecause we use categorical crossentropy.".format(loss))
+            self.loss = self._cross_entropy_error
+            
+        #評価関数の設定
+        if   evaluation=="accuracy":
+            self.eval_name  = "acc"
+            self.evaluation = self._accuracy
+        elif evaluation=="rmse":
+            self.eval_name  = "rmse"
+            self.evaluation = self._rmse            
+        else:
+            print("we don't support evaluation function '{0}'. \nBecause we use accuracy.".format(evaluation))
+            self.eval_name  = "acc"
+            self.evaluation = self._accuracy            
+    
     #学習
     def fit(self, x, t, epochs=100, alpha=0.0000001, verbose=1):
-        #学習履歴のロード
+        
         if self.history is None:
+            self._initial_weight()
             list_loss = []
-            list_acc  = []
+            list_eval = []
         else:
             list_loss = self.history[0]
-            list_acc  = self.history[1]
+            list_eval = self.history[1]
+            
+        if self.std:
+            x = x.apply(lambda x: (x - x.mean()) / x.std())
+            
         #訓練
         for epoch in range(epochs):
             #出力層の結果を計算する
@@ -235,46 +295,53 @@ class DeepNeuralNetwork():
             df_y = self.activated[self.hid_layer_num]
             df_t = pd.DataFrame(list(t.iloc[:,0]))
             loss = self.loss(df_y, df_t)
-            l    = lambda x: x.values.argmax()
-            acc  = df_y.apply(l, axis=1) - df_t.apply(l, axis=1)
-            acc  = list(acc).count(0) / x.shape[0]
             list_loss.append(loss)
-            list_acc.append(acc)
+            data_num   = x.shape[0]
+            evaluation = self.evaluation(df_y, df_t, data_num)
+            list_eval.append(evaluation)
             if verbose==1:
-                print("epoch: {0} / {1}   acc: {2}   loss: {3}".format(
-                      str(epoch + 1), str(epochs), str(round(acc,2)), str(loss)))
+                print("epoch: %d / %d   %s: %f   loss: %f" % (epoch + 1, epochs, self.eval_name, evaluation, loss))
         
             #誤差逆伝播
             self.y_t = df_y - df_t
             self._backward(x, alpha)
             #履歴の保存
-            self.history = [list_loss, list_acc]
+            self.history = [list_loss, list_eval]
     
     ##############################
     #予測
     def predict(self, x):
+        if self.std:
+            x = x.apply(lambda x: (x - x.mean()) / x.std())
         #出力層の結果を計算する
         df = self._forward(x, prd=True)
-        return df.apply(lambda x: x.values.argmax(), axis=1)
+        if self.eval_name=="acc":
+            return df.apply(lambda x: x.values.argmax(), axis=1)
+        else:
+            return df
 
 #########################################################
 #irisからデータを生成
-X, DATA_NUM, INPUT_SIZE, T, OUTPUT_SIZE = cre_data_iris()
+X, INPUT_SIZE, T, OUTPUT_SIZE = cre_data_iris()
 
-#ハイパーパラメータ
-LIST_UNIT_NUM = [4,4]    #隠れ層のユニット数
-EPOCHS        = 1000     #エポック数
+dnn = DeepNeuralNetwork(seed=15)
+dnn.add_input_layer(layer_size=INPUT_SIZE, std=False)
+dnn.add_hidden_layer(layer_size=4, activation="ReLU")
+dnn.add_hidden_layer(layer_size=4, activation="ReLU")
+dnn.add_hidden_layer(layer_size=4, activation="ReLU")
+dnn.add_output_layer(layer_size=OUTPUT_SIZE, activation="softmax", loss="categorical_crossentropy", evaluation="accuracy")
+
+EPOCHS        = 200     #エポック数
 ALPHA         = 0.00001  #学習率
-dnn = DeepNeuralNetwork(INPUT_SIZE, OUTPUT_SIZE, LIST_UNIT_NUM, seed=15)
-dnn.fit(X, T, epochs=EPOCHS, alpha=ALPHA)
+dnn.fit(X, T, epochs=EPOCHS, alpha=ALPHA, verbose=1)
 
 #誤差をプロット
-pd.DataFrame(dnn.history[0]).plot(legend=False)
-pd.DataFrame(dnn.history[1]).plot(legend=False)
+get_ipython().run_line_magic('matplotlib', 'inline')
+
+pd.DataFrame(dnn.history[0]).plot(legend=False, title="loss")
+pd.DataFrame(dnn.history[1]).plot(legend=False, title=dnn.eval_name)
 
 #評価
-if "Y" in X.columns:
-    X.drop("Y", axis=1, inplace=True)
 X["Y"] = dnn.predict(X)
 colors = ["red","blue","green"]
 colors = [colors[i] for i in X.Y]
@@ -282,3 +349,5 @@ X.plot.scatter(x='p_len',y='s_wid',c=colors)
 X.plot.scatter(x='p_len',y='p_wid',c=colors)
 X.plot.scatter(x='s_len',y='p_wid',c=colors)
 X.plot.scatter(x='p_len',y='s_wid',c=colors)
+X.drop("Y", axis=1, inplace=True)
+
