@@ -4,6 +4,7 @@ Created on Sun Sep 10 22:02:06 2017
 
 @author: tt20171105
 """
+import datetime
 import itertools
 import numpy as np
 import pandas as pd
@@ -11,25 +12,20 @@ from sklearn import datasets
 
 #データの準備(iris)
 def cre_data_iris(is_vectorize=True):
-    #目的変数をベクトル化
-    def t_vectorize(t, sorted_t):
-        vector_t = []
-        for _t in sorted_t:
-            if _t==t: 
-                vector_t.append(1)
-            else:
-                vector_t.append(0)
-        return vector_t
     iris = datasets.load_iris()
-    x = pd.DataFrame(iris.data,   columns=["s_len","s_wid","p_len","p_wid"])
-    t = pd.DataFrame(iris.target, columns=["t"])
-    output_layer_size = 1
+    x    = pd.DataFrame(iris.data, columns=["s_len","s_wid","p_len","p_wid"])
     if is_vectorize:
-        sorted_t = sorted(t.t.unique())
-        t["t"]   = t.apply(lambda t: t_vectorize(t.values[0], sorted_t), axis=1)
-        output_layer_size = len(t.t[0])
+        values = np.unique(iris.target)
+        list_t = []
+        for val  in iris.target:
+            zeros = np.zeros(len(values))
+            zeros[val] = 1
+            list_t.append(list(zeros))
+        t = pd.DataFrame(list_t)
+    else:
+        t = pd.DataFrame(iris.target)
     #元データ, 入力層の数, 正解ラベル, 出力層の数
-    return x, x.shape[1], t, output_layer_size
+    return x, x.shape[1], t, len(t.columns)
 
 class DeepNeuralNetwork():
     
@@ -37,7 +33,6 @@ class DeepNeuralNetwork():
         self.unit_size = []
         self.h         = []
         self.dh        = []
-        self.loss      = None
         #学習履歴の初期化
         self.history   = None
         #シード
@@ -72,33 +67,40 @@ class DeepNeuralNetwork():
     #活性化関数
     #シグモイド関数
     def _sigmoid(self, x):
-        return 1. / (1 + np.exp(-x))
+        return 1 / (1 + np.exp(-x))
     def _dsigmoid(self, x):
-        return x * (1. - x)
+        return self._sigmoid(x) * (1 - self._sigmoid(x))
     
     #双曲線正接関数
     def _tanh(self, x):
         return np.tanh(x)
     def _dtanh(self, x):
-        return 1. - x * x
+        return 1 - self._tanh(x) ** 2
     
     #ランプ関数
     def _ReLU(self, x):
         return x * (x > 0)
     def _dReLU(self, x):
-        return 1. * (x > 0)
+        return 1 * (x > 0)
+    
+    #ソフトプラス関数
+    def _softplus(self, x):
+        return np.log(1 + np.exp(x))
+    def _dsoftplus(self, x):
+        return 1 / (1 + np.exp(-x))
     
     #恒等関数
     def _identify(self, x):
         return x
+    def _didentify(self, x):
+        return 1
     
     #ソフトマックス関数
     def _softmax(self, x):
-        max_x     = np.max(x)
-        exp_x     = np.exp(x - max_x)
-        sum_exp_x = np.sum(exp_x)
-        y         = exp_x / sum_exp_x
-        return y 
+        exp_x = np.exp(x)
+        return exp_x / np.sum(exp_x)
+    def _dsoftmax(self, x):
+        return self._softmax(x) * (1 - self._softmax(x))
     
     ##############################
     #損失関数
@@ -233,6 +235,9 @@ class DeepNeuralNetwork():
         elif activation=="sigmoid":
             self.h.append(self._sigmoid)
             self.dh.append(self._dsigmoid)
+        elif activation=="softplus":
+            self.h.append(self._softplus)
+            self.dh.append(self._dsoftplus)            
         else:
             print("we don't support activation function '{0}'. \nBecause we use ReLU.".format(activation))
             self.h.append(self._ReLU)
@@ -275,6 +280,8 @@ class DeepNeuralNetwork():
     #学習
     def fit(self, x, t, epochs=100, alpha=0.0000001, verbose=1):
         
+        start_time = datetime.datetime.now()
+        
         if self.history is None:
             self._initial_weight()
             list_loss = []
@@ -293,17 +300,18 @@ class DeepNeuralNetwork():
             
             #誤差を計算し、表示する
             df_y = self.activated[self.hid_layer_num]
-            df_t = pd.DataFrame(list(t.iloc[:,0]))
-            loss = self.loss(df_y, df_t)
+            loss = self.loss(df_y, t)
             list_loss.append(loss)
             data_num   = x.shape[0]
-            evaluation = self.evaluation(df_y, df_t, data_num)
+            evaluation = self.evaluation(df_y, t, data_num)
             list_eval.append(evaluation)
             if verbose==1:
-                print("epoch: %d / %d   %s: %f   loss: %f" % (epoch + 1, epochs, self.eval_name, evaluation, loss))
+                elapsed_time = datetime.datetime.now() - start_time
+                print("epoch: %d / %d   %s: %f   loss: %f   time: %s" % 
+                      (epoch + 1, epochs, self.eval_name, evaluation, loss, elapsed_time))
         
             #誤差逆伝播
-            self.y_t = df_y - df_t
+            self.y_t = df_y - t
             self._backward(x, alpha)
             #履歴の保存
             self.history = [list_loss, list_eval]
@@ -322,17 +330,17 @@ class DeepNeuralNetwork():
 
 #########################################################
 #irisからデータを生成
-X, INPUT_SIZE, T, OUTPUT_SIZE = cre_data_iris()
+X, INPUT_SIZE, T, OUTPUT_SIZE = cre_data_iris(is_vectorize=True)
 
 dnn = DeepNeuralNetwork(seed=15)
 dnn.add_input_layer(layer_size=INPUT_SIZE, std=False)
-dnn.add_hidden_layer(layer_size=4, activation="ReLU")
-dnn.add_hidden_layer(layer_size=4, activation="ReLU")
+dnn.add_hidden_layer(layer_size=4, activation="sigmoid")
+dnn.add_hidden_layer(layer_size=4, activation="tanh")
 dnn.add_hidden_layer(layer_size=4, activation="ReLU")
 dnn.add_output_layer(layer_size=OUTPUT_SIZE, activation="softmax", loss="categorical_crossentropy", evaluation="accuracy")
 
-EPOCHS        = 200     #エポック数
-ALPHA         = 0.00001  #学習率
+EPOCHS        = 500     #エポック数
+ALPHA         = 0.0001  #学習率
 dnn.fit(X, T, epochs=EPOCHS, alpha=ALPHA, verbose=1)
 
 #誤差をプロット
