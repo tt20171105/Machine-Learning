@@ -23,7 +23,7 @@ class Regression():
             
         self.f = None
         self.w = None
-        self.rmse_max_idx = None
+        self.rmse_min_idx = None
             
     #最小二乗法
     def _least_square_method(self, x, y):
@@ -53,10 +53,10 @@ class Regression():
             x_poly = self.polynominal(x, i)
             f, w   = self._least_square_method(x_poly, y)
             results.append([f, w])
-            rmses.append(rmse(f(x_poly), y))
-        #RMSEが最大になる結果のインデックス
-        self.rmse_max_idx = np.argmax(rmses)
-        result = results[self.rmse_max_idx]
+            rmses.append(self.rmse(f(x_poly), y))
+        #RMSEが最小になる結果のインデックス
+        self.rmse_min_idx = np.argmin(rmses)
+        result = results[self.rmse_min_idx]
         return result[0], result[1]
     
     def polynominal(self, x, x_idx):
@@ -75,7 +75,7 @@ class Regression():
         self.f = f
         self.w = w
 
-y_idx = 2
+y_idx = 3
 
 iris = datasets.load_iris()
 x = np.delete(iris.data, y_idx, 1)
@@ -85,8 +85,8 @@ y = iris.data[:, y_idx]
 rg = Regression("polynominal_regression")
 rg.fit(x, y, 3)
 
-y_hat = rg.f(rg.polynominal(x, rg.rmse_max_idx))
-print(rg.rmse(y_hat, y))
+y_hat = rg.f(rg.polynominal(x, rg.rmse_min_idx))
+print("rmse min idx:%s  rmse=%f" % (rg.rmse_min_idx, rg.rmse(y_hat, y)))
 
 plt.plot(y_hat)
 plt.plot(y)
