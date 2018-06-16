@@ -7,36 +7,27 @@ Created on Fri Oct  6 17:23:40 2017
 import numpy as np
 from sklearn import datasets
 
-ALPHA = 0.01   #学習率
-EPOCH = 10000  #エポック数
-
-#データの準備(iris)
-def cre_data_iris():
-    iris = datasets.load_iris()
-    X    = iris.data[0:100]
-    Y    = iris.target[0:100]
-    Y    = np.array([[y] for y in Y])
-    dimension = len(X[0])
-    return X, Y, dimension
-
 #シグモイド関数
 def sigmoid(x):
-    return np.exp(x) / (1 + np.exp(x))
+    return 1 / (1 + np.exp(-x))
 
-#irisからデータを生成
-X, Y, dimension = cre_data_iris()
-#重みの初期化
-W = np.random.random_sample((1, dimension))
+iris = datasets.load_iris()
+x = iris.data[:100]
+x = np.insert(x, 0, np.ones(x.shape[0]), axis=1)  #add bias
+y = iris.target[:100]
 
-#ロジスティック回帰
-#最急降下法で重みを求める
-for i in range(EPOCH):
-    theta = sum(X * (sigmoid(np.inner(X, W)) - Y))
-    W     = W - ALPHA * theta
+max_iter = 100
+eta      = 0.01
 
-for i in range(len(X)):
-    p = sigmoid(np.inner(X[i], W))[0]
-    if p < 0.5:
-        print("predict:0 result:" + str(Y[i][0]) + " probability:" + str(round(p,5)))
-    else:
-        print("predict:1 result:" + str(Y[i][0]) + " probability:" + str(round(p,5)))
+w = np.zeros(x.shape[1])
+for _ in range(max_iter):
+    w_prev = np.copy(w)
+    sigma  = sigmoid(np.dot(x, w))
+    grad   = np.dot(x.T, (sigma - y))
+    w     -= eta * grad
+    if np.allclose(w, w_prev):
+        break
+
+proba   = sigmoid(np.dot(x, w))
+results = (proba > 0.5).astype(np.int)
+
