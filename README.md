@@ -1,2 +1,3 @@
-# machineLearning
-machineLearning
+# 機械学習の自作スクリプト
+ディープラーニングのpandas実装はおかしいので注意。
+numpy実装をあとであげる予定
