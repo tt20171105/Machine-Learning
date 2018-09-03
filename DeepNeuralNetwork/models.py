@@ -73,8 +73,8 @@ class Sequential():
                 batch_t   = t_train[batch_idx]
                 #順伝播
                 inputs = self.predict(batch_x, True)
-                total_loss  = self.loss(inputs, batch_t)
-                total_score = self.metric(inputs, batch_t)
+                total_loss  += self.loss(inputs, batch_t)
+                total_score += self.metric(inputs, batch_t)
                 #誤差逆伝播
                 inputs = (inputs - batch_t) / len(batch_idx)
                 for layer in reversed(self.layers):
