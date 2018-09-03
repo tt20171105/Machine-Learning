@@ -65,6 +65,7 @@ class Sequential():
         x_size  = x_train.shape[0]
         iternum = int(len(x_train) / batch_size)
         for epoch in range(epochs):
+            total_loss, total_score = 0, 0
             x_idx = np.random.permutation(x_size)
             for i in range(iternum):
                 batch_idx = self._get_batches(x_idx, batch_size, i)
@@ -72,17 +73,18 @@ class Sequential():
                 batch_t   = t_train[batch_idx]
                 #順伝播
                 inputs = self.predict(batch_x, True)
+                total_loss  = self.loss(inputs, batch_t)
+                total_score = self.metric(inputs, batch_t)
                 #誤差逆伝播
                 inputs = (inputs - batch_t) / len(batch_idx)
                 for layer in reversed(self.layers):
                     inputs = layer.backward(inputs)
                 self.optimizer.update_params(self.layers)
-                        
+
             #１エポック分の誤差計算
             #学習
-            inputs = self.predict(x_train)
-            losses_train.append(self.loss(inputs, t_train))
-            results_train.append(self.metric(inputs, t_train))
+            losses_train.append(total_loss / iternum)
+            results_train.append(total_score / iternum)
             #評価
             inputs = self.predict(x_test)
             losses_test.append(self.loss(inputs, t_test))

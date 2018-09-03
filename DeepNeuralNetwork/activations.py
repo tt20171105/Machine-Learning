@@ -37,7 +37,7 @@ def softmax(x):
     exp_x = np.exp(x)
     return exp_x / np.sum(exp_x, axis=1, keepdims=True)
 def d_softmax(x):
-    return self._softmax(x) * (1 - self._softmax(x))
+    return softmax(x) * (1 - softmax(x))
 
 def get_activation_function(activation_function):
     activation   = {"relu"     : relu,

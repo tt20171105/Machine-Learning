@@ -1,4 +1,3 @@
-
 # coding: utf-8
 import copy
 import numpy as np
@@ -8,7 +7,7 @@ from sklearn import datasets
 
 from models import Sequential
 from layers import Dense, Dropout
-from optimizer import SGD, Momentum, AdaGrad, RMSprop, Adam
+from optimizer import Adam
 
 def one_hot_encoding(t):
     t = np.array(t).reshape(1, -1)
@@ -59,7 +58,6 @@ model.fit(train_x, train_t, test_x, test_t,
 
 #誤差をプロット
 import matplotlib.pyplot as plt
-get_ipython().run_line_magic('matplotlib', 'inline')
 
 plt.plot(model.history_train[0])
 plt.plot(model.history_test[0])
@@ -70,4 +68,3 @@ plt.plot(model.history_train[1])
 plt.plot(model.history_test[1])
 plt.title(model.metric_name)
 plt.legend(["train","test"])
-
