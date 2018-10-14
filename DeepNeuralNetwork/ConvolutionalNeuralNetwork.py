@@ -1,6 +1,7 @@
 
 # coding: utf-8
 import numpy as np
+import matplotlib.pyplot as plt
 from models    import Sequential
 from layers    import Dense, Conv2D, Dropout, Pooling
 from optimizer import Adam
@@ -38,16 +39,14 @@ model.fit(x_train=x_train, t_train=y_train, x_test=x_test, t_test=y_test,
           batch_size=128, epochs=10, output_num=1)
 
 #誤差をプロット
-import matplotlib.pyplot as plt
-get_ipython().run_line_magic('matplotlib', 'inline')
-
 plt.plot(model.history_train[0])
 plt.plot(model.history_test[0])
 plt.title("loss")
 plt.legend(["train","test"])
 plt.show()
+
 plt.plot(model.history_train[1])
 plt.plot(model.history_test[1])
 plt.title(model.metric_name)
 plt.legend(["train","test"])
-
+plt.show()
