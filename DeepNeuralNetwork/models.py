@@ -6,7 +6,7 @@ from datetime import datetime
 
 import losses
 import metrics
-from layers import Dense, Dropout
+from layers import Dense, Conv2D, Pooling, Dropout
 
 class Sequential():
     
@@ -26,12 +26,11 @@ class Sequential():
         return x_idx[batch_from : batch_to]
     
     def add(self, Layer):
-        if isinstance(Layer, Dense):
+        if not isinstance(Layer, (Dropout)):
             if Layer.inputs_shape is None:
-                Layer.inputs_shape = self.prev_units
-            self.prev_units = Layer.units
+                Layer.inputs_shape = self.outputs_shape
             Layer.build()
-            
+            self.outputs_shape     = Layer.outputs_shape
         self.layers.append(Layer)
         
     def compile(self, loss, optimizer, metric):
@@ -51,7 +50,7 @@ class Sequential():
         return inputs
     
     def fit(self, x_train, t_train, x_test, t_test, 
-            epochs=100, batch_size=128, verbose=1):
+            epochs=100, batch_size=128, verbose=1, output_num=100):
         
         statime = datetime.now()
         
@@ -93,7 +92,7 @@ class Sequential():
             self.history_train = [losses_train, results_train]
             self.history_test  = [losses_test,  results_test]
 
-            if verbose==1 and (epoch+1) % 100 == 0:
+            if verbose==1 and (epoch+1) % output_num == 0:
                 print("epoch:%d/%d   train %s:%f loss:%f  test %s:%f loss:%f  time: %s" % 
                       (epoch+1, epochs,
                        self.metric_name, results_train[-1], losses_train[-1],

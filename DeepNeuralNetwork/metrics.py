@@ -16,7 +16,7 @@ def get_metric_function(metrics_function):
         return rmse
 
     #MSE
-    def mean_square_error(y, t, batch_size):
+    def mean_square_error(y, t):
         mse = np.mean((t - y) ** 2)
         return mse
     

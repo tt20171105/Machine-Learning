@@ -1,12 +1,12 @@
 
 # coding: utf-8
 import numpy as np
-from layers import Dropout
+from layers import Dropout, Pooling
 
 def get_update_layers(layers):
     update_layers = {}
     for idx, layer in enumerate(layers):
-        if not isinstance(layer, Dropout):
+        if not isinstance(layer, (Dropout, Pooling)):
             update_layers[idx] = layer
     return update_layers
 
