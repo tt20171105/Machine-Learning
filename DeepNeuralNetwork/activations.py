@@ -34,7 +34,8 @@ def d_identify(x):
 
 #ソフトマックス関数
 def softmax(x):
-    exp_x = np.exp(x)
+    x_max = np.max(x)
+    exp_x = np.exp(x - x_max)
     return exp_x / np.sum(exp_x, axis=1, keepdims=True)
 def d_softmax(x):
     return softmax(x) * (1 - softmax(x))
