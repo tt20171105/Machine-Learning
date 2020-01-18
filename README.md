@@ -1,1 +1,1 @@
-# 機械学習の自作スクリプト
+# Self made scripts of Machine Learning. 
